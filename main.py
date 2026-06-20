@@ -58,8 +58,7 @@ async def discord_forward_helper(target_channel, content, file=None, original_me
     sender_name = original_message.author.global_name or original_message.author.name
     avatar_url = original_message.author.display_avatar.url
     
-    formatted_content = f"**{sender_name}**:"
-    
+    formatted_content = f"{sender_name}"
     # Send content only if it exists
     if content:
         formatted_content += f"\n\n{content}"
@@ -167,7 +166,7 @@ async def telegram_receive_handler(update, context):
         return
 
     # Formatting basic message for Discord
-    discord_text = f"**{sender_name}**:"
+    discord_text = f"{sender_name}"
     if text_content:
         discord_text += f"\n\n{text_content}"
     
