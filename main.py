@@ -198,9 +198,7 @@ async def telegram_receive_handler(update, context):
 # --- INTEGRATED RUNNER ---
 
 async def main():
-    # Setup Telegram Application with increased network timeouts
-    # We add drop_pending_updates=True to clear any "zombie" 
-    # messages causing the Conflict error during restarts.
+    # Setup Telegram Application
     tg_app = (
         ApplicationBuilder()
         .token(TELEGRAM_TOKEN)
@@ -211,22 +209,29 @@ async def main():
         .build()
     )
 
-    # Add handler for text and photos
     tg_msg_filter = filters.Chat(TELEGRAM_GROUP_ID) & (filters.TEXT | filters.PHOTO)
     tg_app.add_handler(MessageHandler(tg_msg_filter, telegram_receive_handler))
 
     print("Starting Telegram Bot...")
-    # Initialize and start, dropping any old updates in the queue
+    # Initialize and start polling
     await tg_app.initialize()
     await tg_app.updater.start_polling(drop_pending_updates=True)
     await tg_app.start()
 
     print("Starting Discord Bot...")
-    # Start Discord (This will run forever and keep both bots alive)
-    await discord_bot.start(DISCORD_TOKEN)
+    try:
+        # Start Discord
+        await discord_bot.start(DISCORD_TOKEN)
+    finally:
+        # This code runs if Discord crashes or shuts down
+        print("Shutting down bots...")
+        await tg_app.updater.stop()
+        await tg_app.stop()
+        await tg_app.shutdown()
+        await discord_bot.close()
 
 if __name__ == '__main__':
     try:
         asyncio.run(main())
-    except KeyboardInterrupt:
-        print("Stopping bots...")
+    except Exception as e:
+        print(f"Critical Error: {e}")
