@@ -113,7 +113,7 @@ async def on_message(message):
     # 2. Handle Forwarding to Telegram
     if message.channel.id == SOURCE_CHANNEL_ID:
         sender_name = message.author.global_name or message.author.name
-        formatted_text = f"**{sender_name}**:\n\n{message.content}"
+        formatted_text = f"*{sender_name}*:\n\n{message.content}"
         
         try:
             print(f"DEBUG: Attempting to send to Telegram (ChatID: {TELEGRAM_GROUP_ID}, TopicID: {TELEGRAM_TOPIC_ID})")
