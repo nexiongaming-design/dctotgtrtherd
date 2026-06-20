@@ -199,6 +199,8 @@ async def telegram_receive_handler(update, context):
 
 async def main():
     # Setup Telegram Application with increased network timeouts
+    # We add drop_pending_updates=True to clear any "zombie" 
+    # messages causing the Conflict error during restarts.
     tg_app = (
         ApplicationBuilder()
         .token(TELEGRAM_TOKEN)
@@ -214,10 +216,10 @@ async def main():
     tg_app.add_handler(MessageHandler(tg_msg_filter, telegram_receive_handler))
 
     print("Starting Telegram Bot...")
-    # Start Telegram manually so it doesn't block Discord
+    # Initialize and start, dropping any old updates in the queue
     await tg_app.initialize()
-    await tg_app.start()
     await tg_app.updater.start_polling(drop_pending_updates=True)
+    await tg_app.start()
 
     print("Starting Discord Bot...")
     # Start Discord (This will run forever and keep both bots alive)
