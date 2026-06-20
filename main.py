@@ -58,7 +58,7 @@ async def discord_forward_helper(target_channel, content, file=None, original_me
     sender_name = original_message.author.global_name or original_message.author.name
     avatar_url = original_message.author.display_avatar.url
     
-    formatted_content = f"**{sender_name}** from Discord Source:"
+    formatted_content = f"**{sender_name}**:"
     
     # Send content only if it exists
     if content:
@@ -119,7 +119,7 @@ async def on_message(message):
     # 2. Handle Forwarding to Telegram
     if message.channel.id == SOURCE_CHANNEL_ID:
         sender_name = message.author.global_name or message.author.name
-        formatted_text = f"{sender_name} from Discord:\n\n{message.content}"
+        formatted_text = f"{sender_name}:\n\n{message.content}"
         
         try:
             # Handle Image forwarding to Telegram
@@ -167,7 +167,7 @@ async def telegram_receive_handler(update, context):
         return
 
     # Formatting basic message for Discord
-    discord_text = f"**{sender_name}** from Telegram:"
+    discord_text = f"**{sender_name}**:"
     if text_content:
         discord_text += f"\n\n{text_content}"
     
