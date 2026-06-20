@@ -201,18 +201,18 @@ async def main():
     tg_msg_filter = filters.Chat(TELEGRAM_GROUP_ID) & (filters.TEXT | filters.PHOTO)
     tg_app.add_handler(MessageHandler(tg_msg_filter, telegram_receive_handler))
 
-    # We must run both bot loops simultaneously
-    print("Starting bots...")
-    
-    # We use asyncio.gather to manage both loops in one async execution
-    await asyncio.gather(
-        discord_bot.start(DISCORD_TOKEN),
-        tg_app.run_polling(drop_pending_updates=True) # run_polling is async
-    )
+    print("Starting Telegram Bot...")
+    # Start Telegram manually so it doesn't block Discord
+    await tg_app.initialize()
+    await tg_app.start()
+    await tg_app.updater.start_polling(drop_pending_updates=True)
+
+    print("Starting Discord Bot...")
+    # Start Discord (This will run forever and keep both bots alive)
+    await discord_bot.start(DISCORD_TOKEN)
 
 if __name__ == '__main__':
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        # Handle graceful shutdown on Ctrl+C
         print("Stopping bots...")
