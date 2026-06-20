@@ -1,5 +1,6 @@
 from flask import Flask
 from threading import Thread
+import os
 
 app = Flask('')
 
@@ -8,8 +9,7 @@ def home():
     return "Bot is running!"
 
 def run():
-    # PaaS platforms inject a $PORT environment variable. We must use it.
-    import os
+    # livemy.app and other PaaS assign a dynamic port. We must use it.
     port = int(os.environ.get("PORT", 8080))
     app.run(host='0.0.0.0', port=port)
 
