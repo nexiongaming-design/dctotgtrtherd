@@ -55,15 +55,14 @@ discord_bot = commands.Bot(command_prefix="!", intents=intents)
 
 async def discord_forward_helper(target_channel, content, file=None, original_message=None):
     """Generic function to send text/files to Discord with sender info."""
-    sender_name = original_message.author.global_name or original_message.author.name
+    # Using display_name to show the server-specific nickname
+    sender_name = original_message.author.display_name 
     avatar_url = original_message.author.display_avatar.url
     
-    formatted_content = f"{sender_name}"
-    # Send content only if it exists
+    formatted_content = f"**{sender_name}**" # Added bolding for readability
     if content:
         formatted_content += f"\n\n{content}"
 
-    # Embed creation for better avatar support
     embed = discord.Embed(description=formatted_content)
     embed.set_author(name=sender_name, icon_url=avatar_url)
 
