@@ -82,8 +82,12 @@ async def on_ready():
 
 @discord_bot.event
 async def on_message(message):
-    """Processes messages from Discord."""
-    # Prevent bot from responding to itself
+    print("--- DISCORD DEBUG ---")
+    print(f"Message from: {message.author}")
+    print(f"In Channel ID: {message.channel.id}")
+    print(f"My Target ID is: {DISCORD_CHANNEL_ID}")
+    print(f"Message Content: {message.content}")
+    
     if message.author == discord_bot.user:
         return
 
@@ -144,11 +148,11 @@ async def on_message(message):
 
 # --- TELEGRAM BOT LOGIC (Receiving from Telegram) ---
 
-async def telegram_receive_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Processes messages received by the Telegram Bot."""
-    # 1. Filter: Only process from our specific Group
-    if update.effective_chat.id != TELEGRAM_GROUP_ID:
-        return
+async def telegram_receive_handler(update, context):
+    print("--- TELEGRAM DEBUG ---")
+    print(f"Message in Chat ID: {update.effective_chat.id}")
+    print(f"My Target ID is: {TELEGRAM_GROUP_ID}")
+    print(f"Message Text: {update.effective_message.text}")
 
     # 2. Extract Data
     sender_user = update.effective_user
