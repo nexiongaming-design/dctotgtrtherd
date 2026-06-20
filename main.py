@@ -81,37 +81,28 @@ async def on_ready():
 
 @discord_bot.event
 async def on_message(message):
-    print("--- DISCORD DEBUG ---")
-    print(f"Message from: {message.author}")
-    print(f"In Channel ID: {message.channel.id}")
-    print(f"My Target ID is: {DISCORD_CHANNEL_ID}")
-    print(f"Message Content: {message.content}")
+    # Log everything to see if Discord is even receiving the message
+    if message.channel.id == SOURCE_CHANNEL_ID:
+        print(f"--- DISCORD DEBUG --- Received: '{message.content}' from {message.author}")
     
     if message.author == discord_bot.user:
         return
 
-    # 1. Handle Multi-Channel Translation (within Discord)
+    # 1. Handle Multi-Channel Translation
     if message.channel.id == SOURCE_CHANNEL_ID and message.content:
         for lang_code, target_channel_id in LANGUAGE_MAP.items():
             target_channel = discord_bot.get_channel(target_channel_id)
             if target_channel:
                 try:
-                    # Translate
                     translated = GoogleTranslator(source='auto', target=lang_code).translate(message.content)
-                    
-                    # Prepare file if original has attachments
                     file = None
                     if message.attachments:
                         attachment = message.attachments[0]
                         if attachment.filename.lower().endswith(('png', 'jpg', 'jpeg', 'webp')):
-                            # Must create a NEW file object for every send
                             response = requests.get(attachment.url)
                             file_data = io.BytesIO(response.content)
                             file = discord.File(file_data, filename=attachment.filename)
-
-                    # Send translated content
                     await discord_forward_helper(target_channel, translated, file, message)
-                    
                 except Exception as e:
                     print(f"Translation Error for {lang_code}: {e}")
 
@@ -121,28 +112,32 @@ async def on_message(message):
         formatted_text = f"{sender_name}:\n\n{message.content}"
         
         try:
-            # Handle Image forwarding to Telegram
+            print(f"DEBUG: Attempting to send to Telegram (ChatID: {TELEGRAM_GROUP_ID}, TopicID: {TELEGRAM_TOPIC_ID})")
+            
+            # Handle Image
             if message.attachments:
                 attachment = message.attachments[0]
                 if attachment.filename.lower().endswith(('png', 'jpg', 'jpeg', 'webp')):
-                    # TG can send photo by direct URL
                     await tg_bot_sender.send_photo(
                         chat_id=TELEGRAM_GROUP_ID,
                         photo=attachment.url,
                         caption=formatted_text,
-                        message_thread_id=TELEGRAM_TOPIC_ID
+                        message_thread_id=TELEGRAM_TOPIC_ID if TELEGRAM_TOPIC_ID != 0 else None
                     )
-                    return # Stop after sending image
+                    print("DEBUG: Image sent to Telegram successfully.")
+                    return 
 
-            # If no image, send just text
+            # Handle Text
             if message.content:
                  await tg_bot_sender.send_message(
                     chat_id=TELEGRAM_GROUP_ID,
                     text=formatted_text,
-                    message_thread_id=TELEGRAM_TOPIC_ID
+                    message_thread_id=TELEGRAM_TOPIC_ID if TELEGRAM_TOPIC_ID != 0 else None
                 )
+                 print("DEBUG: Text sent to Telegram successfully.")
+                 
         except Exception as e:
-            print(f"Error forwarding to Telegram: {e}")
+            print(f"CRITICAL ERROR forwarding to Telegram: {e}")
 
 
 # --- TELEGRAM BOT LOGIC (Receiving from Telegram) ---
