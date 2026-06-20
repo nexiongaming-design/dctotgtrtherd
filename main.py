@@ -194,8 +194,16 @@ async def telegram_receive_handler(update: Update, context: ContextTypes.DEFAULT
 # --- INTEGRATED RUNNER ---
 
 async def main():
-    # Setup Telegram Application for listening
-    tg_app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+    # Setup Telegram Application with increased network timeouts
+    tg_app = (
+        ApplicationBuilder()
+        .token(TELEGRAM_TOKEN)
+        .connect_timeout(30.0)
+        .read_timeout(30.0)
+        .write_timeout(30.0)
+        .get_updates_read_timeout(30.0)
+        .build()
+    )
 
     # Add handler for text and photos
     tg_msg_filter = filters.Chat(TELEGRAM_GROUP_ID) & (filters.TEXT | filters.PHOTO)
