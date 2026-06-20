@@ -1,0 +1,6 @@
+discord.py
+python-telegram-bot
+deep-translator
+python-dotenv
+requests
+asyncio
