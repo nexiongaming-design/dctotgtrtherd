@@ -1,9 +1,8 @@
 import os
 import discord
 from discord.ext import commands
-from telegram import Update, Bot
+from telegram import Update
 from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, filters
-from deep_translator import GoogleTranslator
 from dotenv import load_dotenv
 import asyncio
 import io
@@ -20,22 +19,6 @@ load_dotenv()
 # Discord IDs
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 SOURCE_CHANNEL_ID = int(os.getenv("DISCORD_SOURCE_CHANNEL_ID"))
-EN_CHANNEL_ID = int(os.getenv("DISCORD_EN_CHANNEL_ID"))
-FR_CHANNEL_ID = int(os.getenv("DISCORD_FR_CHANNEL_ID"))
-DE_CHANNEL_ID = int(os.getenv("DISCORD_DE_CHANNEL_ID"))
-IT_CHANNEL_ID = int(os.getenv("DISCORD_IT_CHANNEL_ID"))
-ES_CHANNEL_ID = int(os.getenv("DISCORD_ES_CHANNEL_ID"))
-NL_CHANNEL_ID = int(os.getenv("DISCORD_NL_CHANNEL_ID"))
-
-# Mapping for the translation function
-LANGUAGE_MAP = {
-    'en': EN_CHANNEL_ID,
-    'fr': FR_CHANNEL_ID,
-    'de': DE_CHANNEL_ID,
-    'it': IT_CHANNEL_ID,
-    'es': ES_CHANNEL_ID,
-    'nl': NL_CHANNEL_ID
-}
 
 # Telegram IDs
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
@@ -51,7 +34,7 @@ intents.message_content = True # REQUIRED
 discord_bot = commands.Bot(command_prefix="!", intents=intents)
 
 
-# --- DISCORD BOT LOGIC (Discord -> Telegram ONLY) ---
+# --- DISCORD BOT LOGIC (Discord Source -> Telegram) ---
 
 @discord_bot.event
 async def on_ready():
@@ -59,18 +42,15 @@ async def on_ready():
 
 @discord_bot.event
 async def on_message(message):
-    # 1. Ignore if sent by the bot
+    # 1. Ignore if sent by our own bot
     if message.author.id == discord_bot.user.id:
         return
 
-    # 2. Prevent loops by checking language channels
-    if message.channel.id in LANGUAGE_MAP.values():
+    # 2. Ignore ALL messages sent by Webhooks (prevents webhook translation loops)
+    if message.webhook_id is not None:
         return
 
-    # 3. Double-check for signature
-    if "\u200b" in message.content:
-        return
-
+    # 3. Only act if the message is in the Source Channel
     if message.channel.id == SOURCE_CHANNEL_ID:
         print(f"--- DISCORD DEBUG --- Received from {message.author}")
 
@@ -108,29 +88,38 @@ async def on_message(message):
             print(f"CRITICAL ERROR forwarding to Telegram: {e}")
 
 
-# --- TELEGRAM BOT LOGIC (Telegram -> Discord Source + Translations) ---
+# --- TELEGRAM BOT LOGIC (Telegram -> Discord Source) ---
 
-async def telegram_receive_handler(update, context):
+async def telegram_receive_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     print("--- TELEGRAM DEBUG ---")
     
+    message = update.effective_message
+    if not message:
+        return
+
+    # Ignore messages sent by bots to prevent echo loops
+    if message.from_user and message.from_user.is_bot:
+        print("DEBUG: Ignored bot message to prevent echo loop.")
+        return
+
     sender_user = update.effective_user
     sender_name = sender_user.first_name or sender_user.username
-    text_content = update.message.text or update.message.caption or ""
-    photo_content = update.message.photo
+    text_content = message.text or message.caption or ""
+    photo_content = message.photo
 
     source_channel = discord_bot.get_channel(SOURCE_CHANNEL_ID)
     if not source_channel:
         print("Discord Source Channel not found.")
         return
 
-    # 1. Download image bytes into memory ONCE (if applicable)
+    # Download image bytes into memory ONCE (if applicable)
     byte_array = None
     if photo_content:
         photo = photo_content[-1]
         tg_file = await context.bot.get_file(photo.file_id)
         byte_array = await tg_file.download_as_bytearray()
 
-    # 2. Forward the ORIGINAL message to the Discord Source Channel
+    # Forward the ORIGINAL message to the Discord Source Channel
     original_discord_text = f"**{sender_name}**"
     if text_content:
         original_discord_text += f"\n\n{text_content}"
@@ -142,35 +131,10 @@ async def telegram_receive_handler(update, context):
             await source_channel.send(content=original_discord_text, file=discord_file)
         elif text_content:
             await source_channel.send(content=original_discord_text)
+            
+        print("DEBUG: Successfully bridged from Telegram to Discord Source Channel.")
     except Exception as e:
         print(f"Error forwarding original to Discord Source: {e}")
-
-    # 3. Translate and Forward to Discord Language Channels
-    if text_content or byte_array:
-        for lang_code, target_channel_id in LANGUAGE_MAP.items():
-            target_channel = discord_bot.get_channel(target_channel_id)
-            if target_channel:
-                try:
-                    translated_text = ""
-                    if text_content:
-                        translated_text = GoogleTranslator(source='auto', target=lang_code).translate(text_content)
-                    
-                    # Format text and add zero-width space signature (\u200b)
-                    lang_discord_text = f"**{sender_name}**"
-                    if translated_text:
-                        lang_discord_text += f"\n\n{translated_text}"
-                    lang_discord_text += "\u200b" 
-                    
-                    if byte_array:
-                        # Re-create the stream so Discord can read it fresh for each channel
-                        lang_stream = io.BytesIO(byte_array)
-                        lang_file = discord.File(lang_stream, filename=f"telegram_image_{lang_code}.png")
-                        await target_channel.send(content=lang_discord_text, file=lang_file)
-                    else:
-                        await target_channel.send(content=lang_discord_text)
-                        
-                except Exception as e:
-                    print(f"Translation Error for Telegram -> Discord ({lang_code}): {e}")
 
 
 # --- INTEGRATED RUNNER ---
