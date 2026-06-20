@@ -42,8 +42,9 @@ TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 TELEGRAM_GROUP_ID = int(os.getenv("TELEGRAM_GROUP_ID"))
 TELEGRAM_TOPIC_ID = int(os.getenv("TELEGRAM_TOPIC_ID"))
 
-# Initialize Telegram bot for sending
-tg_bot_sender = Bot(token=TELEGRAM_TOKEN)
+# CRUCIAL FIX: Initialize as None here to avoid Event Loop conflicts. 
+# We will assign the active bot to this variable inside main().
+tg_bot_sender = None
 
 # Initialize Discord bot
 intents = discord.Intents.default()
@@ -99,7 +100,6 @@ async def on_message(message):
             if target_channel:
                 try:
                     translated = ""
-                    # Only translate if there is text (fixes empty string errors on images)
                     if message.content:
                         translated = GoogleTranslator(source='auto', target=lang_code).translate(message.content)
                     
@@ -107,12 +107,10 @@ async def on_message(message):
                     if message.attachments:
                         attachment = message.attachments[0]
                         if attachment.filename.lower().endswith(('png', 'jpg', 'jpeg', 'webp')):
-                            # Use Discord's native async read instead of blocking requests.get
                             image_bytes = await attachment.read()
                             file_data = io.BytesIO(image_bytes)
                             file = discord.File(file_data, filename=attachment.filename)
                     
-                    # Only forward if there's actually text or a file
                     if translated or file:
                         await discord_forward_helper(target_channel, translated, file, message)
                 except Exception as e:
@@ -128,7 +126,6 @@ async def on_message(message):
             if message.attachments:
                 attachment = message.attachments[0]
                 if attachment.filename.lower().endswith(('png', 'jpg', 'jpeg', 'webp')):
-                    # Download bytes natively instead of passing the Discord CDN URL
                     image_bytes = await attachment.read()
                     
                     await tg_bot_sender.send_photo(
@@ -181,15 +178,12 @@ async def telegram_receive_handler(update, context):
     try:
         # Handle Images from TG
         if photo_content:
-            # TG sends a list of photo sizes; get the largest
             photo = photo_content[-1]
             tg_file = await context.bot.get_file(photo.file_id)
             
-            # Use async download to prevent freezing the event loop
             byte_array = await tg_file.download_as_bytearray()
             file_stream = io.BytesIO(byte_array)
             
-            # Create Discord File object
             discord_file = discord.File(file_stream, filename="telegram_image.png")
             
             await source_channel.send(content=discord_text, file=discord_file)
@@ -205,6 +199,8 @@ async def telegram_receive_handler(update, context):
 # --- INTEGRATED RUNNER ---
 
 async def main():
+    global tg_bot_sender # Access the global variable
+    
     # Setup Telegram Application
     tg_app = (
         ApplicationBuilder()
@@ -215,6 +211,9 @@ async def main():
         .get_updates_read_timeout(30.0)
         .build()
     )
+
+    # CRUCIAL FIX: Now we bind the sender bot AFTER the event loop has started
+    tg_bot_sender = tg_app.bot 
 
     tg_msg_filter = filters.Chat(TELEGRAM_GROUP_ID) & (filters.TEXT | filters.PHOTO)
     tg_app.add_handler(MessageHandler(tg_msg_filter, telegram_receive_handler))
