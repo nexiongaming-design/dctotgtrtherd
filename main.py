@@ -76,14 +76,18 @@ async def on_ready():
 
 @discord_bot.event
 async def on_message(message):
-    # 1. Ignore if sent by the bot
-    if message.author == discord_bot.user:
+    # 1. Ignore if sent by the bot (This is the most reliable check)
+    if message.author.id == discord_bot.user.id:
         return
 
-    # 2. LOOP PREVENTION: Ignore if it contains our "signature"
+    # 2. Prevent loops by checking if the message originated from a channel 
+    # the bot is currently writing to (Language Channels)
+    if message.channel.id in LANGUAGE_MAP.values():
+        return
+
+    # 3. Double-check: If message contains our signature, ignore
     if "\u200b" in message.content:
         return
-    # -----------------------
 
     if message.channel.id == SOURCE_CHANNEL_ID:
         print(f"--- DISCORD DEBUG --- Received: '{message.content}' from {message.author}")
