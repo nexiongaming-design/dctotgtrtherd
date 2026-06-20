@@ -54,22 +54,18 @@ discord_bot = commands.Bot(command_prefix="!", intents=intents)
 # --- INTERNAL HELPER FUNCTIONS ---
 
 async def discord_forward_helper(target_channel, content, file=None, original_message=None):
-    """Generic function to send text/files to Discord with sender info."""
-    # Using display_name to show the server-specific nickname
-    sender_name = original_message.author.display_name 
-    avatar_url = original_message.author.display_avatar.url
+    sender_name = original_message.author.display_name
     
-    formatted_content = f"**{sender_name}**" # Added bolding for readability
-    if content:
-        formatted_content += f"\n\n{content}"
-
-    embed = discord.Embed(description=formatted_content)
-    embed.set_author(name=sender_name, icon_url=avatar_url)
+    # We add a zero-width space (\u200b) as a 'signature' to identify bot messages
+    hidden_tag = "\u200b" 
+    
+    # Plain text format: **Name**: Message
+    formatted_text = f"**{sender_name}**: {content}{hidden_tag}"
 
     if file:
-        await target_channel.send(embed=embed, file=file)
+        await target_channel.send(content=formatted_text, file=file)
     else:
-        await target_channel.send(embed=embed)
+        await target_channel.send(content=formatted_text)
 
 
 # --- DISCORD BOT LOGIC (Receiving from Discord) ---
@@ -80,12 +76,17 @@ async def on_ready():
 
 @discord_bot.event
 async def on_message(message):
-    # Log everything to see if Discord is even receiving the message
-    if message.channel.id == SOURCE_CHANNEL_ID:
-        print(f"--- DISCORD DEBUG --- Received: '{message.content}' from {message.author}")
-    
+    # 1. Ignore if sent by the bot
     if message.author == discord_bot.user:
         return
+
+    # 2. LOOP PREVENTION: Ignore if it contains our "signature"
+    if "\u200b" in message.content:
+        return
+    # -----------------------
+
+    if message.channel.id == SOURCE_CHANNEL_ID:
+        print(f"--- DISCORD DEBUG --- Received: '{message.content}' from {message.author}")
 
     # 1. Handle Multi-Channel Translation
     if message.channel.id == SOURCE_CHANNEL_ID and message.content:
