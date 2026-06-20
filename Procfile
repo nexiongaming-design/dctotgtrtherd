@@ -1,1 +1,1 @@
-web: python bridge.py
+web: python main.py
