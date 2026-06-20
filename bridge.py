@@ -9,6 +9,11 @@ import asyncio
 import requests
 import io
 
+# --- START THE DUMMY WEB SERVER ---
+from keep_alive import keep_alive
+keep_alive() 
+# ----------------------------------
+
 # Load secrets
 load_dotenv()
 
