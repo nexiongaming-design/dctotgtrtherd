@@ -19,14 +19,14 @@ load_dotenv()
 # Discord IDs
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 
-# SMART CHANNEL FETCHING: Supports both your old .env variable and the new list format
+# Fetch the channel ID(s). This safely handles your single ID, 
+# but will still work if you ever add commas back in later.
 raw_channel_ids = os.getenv("DISCORD_CHANNEL_IDS", "")
 if raw_channel_ids:
     DISCORD_CHANNEL_IDS = [int(cid.strip()) for cid in raw_channel_ids.split(",") if cid.strip()]
 else:
-    # Falls back to your existing .env variable so it works instantly
-    old_id = os.getenv("DISCORD_SOURCE_CHANNEL_ID")
-    DISCORD_CHANNEL_IDS = [int(old_id)] if old_id else []
+    print("CRITICAL: DISCORD_CHANNEL_IDS is missing from your .env file!")
+    DISCORD_CHANNEL_IDS = []
 
 # Telegram IDs
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
@@ -47,23 +47,23 @@ discord_bot = commands.Bot(command_prefix="!", intents=intents)
 @discord_bot.event
 async def on_ready():
     print(f'Logged in to Discord as {discord_bot.user.name}')
-    print(f'Listening to Discord Channels: {DISCORD_CHANNEL_IDS}')
+    print(f'Listening to Discord Channel(s): {DISCORD_CHANNEL_IDS}')
 
 @discord_bot.event
 async def on_message(message):
-    # 1. Ignore ALL bots (prevents duplicate loops from translator bots)
-    if message.author.bot:
-        return
-
-    # 2. Ignore ALL messages sent by Webhooks
+    # 1. Webhook / Bot Filter
     if message.webhook_id is not None:
+        # ALLOW webhooks (your translator bot) through
+        print(f"DEBUG: Permitting webhook message from {message.author.display_name}")
+    elif message.author.bot:
+        # BLOCK standard bots (like this script itself) to prevent infinite loops
         return
 
-    # 3. Act if the message is in ANY of the registered channels
+    # 2. Act if the message is in the registered source channel
     if message.channel.id in DISCORD_CHANNEL_IDS:
-        print(f"--- DISCORD DEBUG --- Received from {message.author} in channel {message.channel.id}")
+        print(f"--- DISCORD DEBUG --- Received from {message.author.display_name} in channel {message.channel.id}")
 
-        # FIX: Uses display_name to perfectly match the server nickname and special characters
+        # Format message
         sender_name = message.author.display_name
         formatted_text = f"{sender_name}:\n\n{message.content}"
         
@@ -121,78 +121,4 @@ async def telegram_receive_handler(update: Update, context: ContextTypes.DEFAULT
     byte_array = None
     if photo_content:
         photo = photo_content[-1]
-        tg_file = await context.bot.get_file(photo.file_id)
-        byte_array = await tg_file.download_as_bytearray()
-
-    # Format the ORIGINAL message
-    original_discord_text = f"**{sender_name}**"
-    if text_content:
-        original_discord_text += f"\n\n{text_content}"
-    
-    # Loop through connected Discord channels and send the Telegram message
-    for channel_id in DISCORD_CHANNEL_IDS:
-        target_channel = discord_bot.get_channel(channel_id)
-        
-        if not target_channel:
-            print(f"Warning: Discord Channel ID {channel_id} not found/bot lacks access.")
-            continue
-
-        try:
-            if byte_array:
-                # We must recreate the BytesIO stream for EVERY channel loop.
-                file_stream = io.BytesIO(byte_array)
-                discord_file = discord.File(file_stream, filename="telegram_image.png")
-                await target_channel.send(content=original_discord_text, file=discord_file)
-            elif text_content:
-                await target_channel.send(content=original_discord_text)
-                
-            print(f"DEBUG: Successfully bridged from Telegram to Discord Channel {channel_id}.")
-        except Exception as e:
-            print(f"Error forwarding original to Discord Channel {channel_id}: {e}")
-
-
-# --- INTEGRATED RUNNER ---
-
-async def main():
-    global tg_bot_sender # Access the global variable
-    
-    # Setup Telegram Application
-    tg_app = (
-        ApplicationBuilder()
-        .token(TELEGRAM_TOKEN)
-        .connect_timeout(30.0)
-        .read_timeout(30.0)
-        .write_timeout(30.0)
-        .get_updates_read_timeout(30.0)
-        .build()
-    )
-
-    # Bind the sender bot AFTER the event loop has started
-    tg_bot_sender = tg_app.bot 
-
-    tg_msg_filter = filters.Chat(TELEGRAM_GROUP_ID) & (filters.TEXT | filters.PHOTO)
-    tg_app.add_handler(MessageHandler(tg_msg_filter, telegram_receive_handler))
-
-    print("Starting Telegram Bot...")
-    # Initialize and start polling
-    await tg_app.initialize()
-    await tg_app.updater.start_polling(drop_pending_updates=True)
-    await tg_app.start()
-
-    print("Starting Discord Bot...")
-    try:
-        # Start Discord
-        await discord_bot.start(DISCORD_TOKEN)
-    finally:
-        # This code runs if Discord crashes or shuts down
-        print("Shutting down bots...")
-        await tg_app.updater.stop()
-        await tg_app.stop()
-        await tg_app.shutdown()
-        await discord_bot.close()
-
-if __name__ == '__main__':
-    try:
-        asyncio.run(main())
-    except Exception as e:
-        print(f"Critical Error: {e}")
+        tg_file = await context
