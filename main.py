@@ -19,10 +19,14 @@ load_dotenv()
 # Discord IDs
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 
-# NEW: Fetch multiple channel IDs as a comma-separated list
-# Example .env entry: DISCORD_CHANNEL_IDS=123456789,987654321,555555555
+# SMART CHANNEL FETCHING: Supports both your old .env variable and the new list format
 raw_channel_ids = os.getenv("DISCORD_CHANNEL_IDS", "")
-DISCORD_CHANNEL_IDS = [int(channel_id.strip()) for channel_id in raw_channel_ids.split(",") if channel_id.strip()]
+if raw_channel_ids:
+    DISCORD_CHANNEL_IDS = [int(cid.strip()) for cid in raw_channel_ids.split(",") if cid.strip()]
+else:
+    # Falls back to your existing .env variable so it works instantly
+    old_id = os.getenv("DISCORD_SOURCE_CHANNEL_ID")
+    DISCORD_CHANNEL_IDS = [int(old_id)] if old_id else []
 
 # Telegram IDs
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
@@ -47,19 +51,19 @@ async def on_ready():
 
 @discord_bot.event
 async def on_message(message):
-    # 1. Ignore ALL bots (prevents echo loops from translator bots and our own bot)
+    # 1. Ignore ALL bots (prevents duplicate loops from translator bots)
     if message.author.bot:
         return
 
-    # 2. Ignore ALL messages sent by Webhooks (prevents webhook translation loops)
+    # 2. Ignore ALL messages sent by Webhooks
     if message.webhook_id is not None:
         return
 
-    # 3. Act if the message is in ANY of the Source Channels
+    # 3. Act if the message is in ANY of the registered channels
     if message.channel.id in DISCORD_CHANNEL_IDS:
         print(f"--- DISCORD DEBUG --- Received from {message.author} in channel {message.channel.id}")
 
-        # UPDATED: Use display_name to perfectly match what is shown in the Discord server
+        # FIX: Uses display_name to perfectly match the server nickname and special characters
         sender_name = message.author.display_name
         formatted_text = f"{sender_name}:\n\n{message.content}"
         
@@ -125,7 +129,7 @@ async def telegram_receive_handler(update: Update, context: ContextTypes.DEFAULT
     if text_content:
         original_discord_text += f"\n\n{text_content}"
     
-    # Loop through ALL connected Discord channels and send the Telegram message
+    # Loop through connected Discord channels and send the Telegram message
     for channel_id in DISCORD_CHANNEL_IDS:
         target_channel = discord_bot.get_channel(channel_id)
         
@@ -135,8 +139,7 @@ async def telegram_receive_handler(update: Update, context: ContextTypes.DEFAULT
 
         try:
             if byte_array:
-                # We must recreate the BytesIO stream for EVERY channel loop. 
-                # Otherwise, the file buffer is "empty" after the first channel sends it.
+                # We must recreate the BytesIO stream for EVERY channel loop.
                 file_stream = io.BytesIO(byte_array)
                 discord_file = discord.File(file_stream, filename="telegram_image.png")
                 await target_channel.send(content=original_discord_text, file=discord_file)
