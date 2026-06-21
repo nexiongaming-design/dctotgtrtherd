@@ -71,10 +71,10 @@ async def on_ready():
 @discord_bot.event
 async def on_message(message):
     # 1. Webhook / Bot Filter
-    if message.webhook_id is not None:
-        pass # ALLOW WEBHOOKS: Lets your iTranslator bot through!
-    elif message.author.bot:
-        return # BLOCK STANDARD BOTS: Prevents loops from your own script
+    # BLOCK WEBHOOKS AND BOTS: This prevents translator bots (webhooks) 
+    # and standard bots from forwarding messages to Telegram.
+    if message.webhook_id is not None or message.author.bot:
+        return 
 
     # 2. Act if the message is in ANY of the registered language channels
     if message.channel.id in DISCORD_LISTEN_CHANNELS:
