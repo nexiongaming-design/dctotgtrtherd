@@ -64,9 +64,16 @@ discord_bot = commands.Bot(command_prefix="!", intents=intents)
 
 @discord_bot.event
 async def on_ready():
+    # 1. Update the health check flags for UptimeRobot/Render
+    from keep_alive import bot_status
+    bot_status["discord_online"] = True
+    bot_status["telegram_online"] = True 
+
+    # 2. Your original print statements (completely untouched!)
     print(f'Logged in to Discord as {discord_bot.user.name}')
     print(f'Listening to Discord Channels: {DISCORD_LISTEN_CHANNELS}')
     print(f'Routing Telegram replies to: {DISCORD_SOURCE_CHANNEL_ID}')
+
 
 @discord_bot.event
 async def on_message(message):
